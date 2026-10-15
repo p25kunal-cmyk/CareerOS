@@ -1,6 +1,7 @@
-"""Streamlit UI page for Job Discovery, Manual Entry, and Search Profiles.
+"""Streamlit UI page for Job Discovery, Source Plugins, and Search Profiles.
 
-Enables capturing job descriptions, deduplicating records, and defining MBA search targets.
+Enables automated scraping across job portals, deduplicating records,
+and configuring MBA target profiles.
 """
 
 from __future__ import annotations
@@ -8,18 +9,25 @@ from __future__ import annotations
 import streamlit as st
 
 from src.database.connection import DatabaseConnection
+from src.jobs.engine import JobDiscoveryEngine
 from src.tracker.models import JobPosting, JobSearchProfile
 from src.tracker.repository import TrackerRepository
 
 
 def render(db: DatabaseConnection):
-    """Render Find Jobs and Job Profiles page."""
-    repo = TrackerRepository(db)
+    """Render Find Jobs, Discovery, and Job Profiles page."""
+    tracker_repo = TrackerRepository(db)
+    engine = JobDiscoveryEngine(db)
 
-    st.markdown("## 🔍 Job Opportunities & Profiles")
-    st.caption("Capture job opportunities, configure MBA target profiles, and discover matching roles.")
+    st.markdown("## 🔍 Job Opportunities & Discovery")
+    st.caption("Capture job opportunities, run automated multi-source discovery, and manage MBA search targets.")
 
-    tab1, tab2, tab3 = st.tabs(["💼 Job Directory", "➕ Capture Job Posting", "🎯 MBA Search Profiles"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "💼 Job Directory",
+        "⚡ Automated Discovery",
+        "➕ Manual Job Entry",
+        "🎯 MBA Search Profiles",
+    ])
 
     # ── TAB 1: DIRECTORY ──────────────────────────────────────────
     with tab1:
@@ -30,12 +38,12 @@ def render(db: DatabaseConnection):
             status_filter = st.selectbox("Status", ["All", "active", "closed", "expired"])
 
         f_status = None if status_filter == "All" else status_filter
-        jobs = repo.list_jobs(filter_status=f_status, query=search_query)
+        jobs = tracker_repo.list_jobs(filter_status=f_status, query=search_query)
 
         st.markdown(f"##### Opportunities ({len(jobs)} total)")
 
         if not jobs:
-            st.info("No jobs found. Use the **Capture Job Posting** tab to log a job.")
+            st.info("No jobs found. Run **Automated Discovery** or use **Manual Job Entry**.")
         else:
             for job in jobs:
                 with st.expander(f"💼 {job.title} — {job.company} · ({job.location or 'Any'})", expanded=False):
@@ -62,17 +70,80 @@ def render(db: DatabaseConnection):
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
                             if st.button("📋 Track in Funnel", key=f"track_job_{job.id}", use_container_width=True):
-                                repo.create_application(job_id=job.id, status="saved")
+                                tracker_repo.create_application(job_id=job.id, status="saved")
                                 st.success("Added to Application Tracker!")
                                 st.session_state["nav_target"] = "Application Tracker"
                                 st.rerun()
                         with btn_col2:
                             if st.button("🗑️ Delete", key=f"del_job_{job.id}", use_container_width=True):
-                                repo.delete_job(job.id)
+                                tracker_repo.delete_job(job.id)
                                 st.rerun()
 
-    # ── TAB 2: MANUAL CAPTURE ─────────────────────────────────────
+    # ── TAB 2: AUTOMATED DISCOVERY ────────────────────────────────
     with tab2:
+        st.markdown("#### Automated Multi-Portal Discovery")
+        st.caption("Search across LinkedIn, IIMjobs, Indeed, and Naukri with intelligent deduplication and rate limiting.")
+
+        profiles = tracker_repo.list_profiles()
+        sources_status = engine.list_source_statuses()
+
+        col_cfg1, col_cfg2 = st.columns([3, 2])
+        with col_cfg1:
+            if profiles:
+                selected_prof_idx = st.selectbox(
+                    "Active Search Profile Criteria",
+                    range(len(profiles)),
+                    format_func=lambda i: f"{'⭐ ' if profiles[i].is_default else ''}{profiles[i].name} ({', '.join(profiles[i].target_roles[:2])})",
+                )
+                selected_profile = profiles[selected_prof_idx]
+            else:
+                selected_profile = None
+                st.warning("No search profiles found. Create one in the MBA Search Profiles tab.")
+
+            limit_per_source = st.slider("Max results per role per portal", min_value=5, max_value=25, value=10)
+
+        with col_cfg2:
+            st.markdown("##### Portal Statuses")
+            for src in sources_status:
+                s_icon = "🟢" if src["is_enabled"] else "⚪"
+                last_run = src["last_successful_run"] or "Never"
+                st.markdown(f"{s_icon} **{src['name']}** (`{src['source_type']}`) · *Last:* `{last_run}`")
+
+        if st.button("⚡ Start Job Discovery", type="primary", use_container_width=True):
+            with st.spinner("Scraping portals and deduplicating opportunities..."):
+                res = engine.run_discovery(
+                    profile_id=selected_profile.id if selected_profile else None,
+                    limit_per_source=limit_per_source,
+                )
+
+                st.markdown("---")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Opportunities Processed", res.items_processed)
+                m2.metric("New Added", f"+{res.items_added}")
+                m3.metric("Updated (Deduplicated)", f"~{res.items_updated}")
+                m4.metric("Duration", f"{res.duration_seconds}s")
+
+                if res.sources_succeeded:
+                    st.success(f"Successfully queried sources: {', '.join(res.sources_succeeded)}")
+                if res.sources_failed:
+                    st.warning(f"Failed sources: {', '.join(res.sources_failed)}")
+
+        st.markdown("---")
+        st.markdown("##### Source Configuration & Toggles")
+        for src in sources_status:
+            t_col1, t_col2 = st.columns([4, 1])
+            with t_col1:
+                st.markdown(f"**{src['name']}** — `{src['source_type']}`")
+                if src.get("last_error"):
+                    st.caption(f"Last Error: {src['last_error']}")
+            with t_col2:
+                new_state = st.toggle("Enabled", value=bool(src["is_enabled"]), key=f"toggle_{src['id']}")
+                if new_state != bool(src["is_enabled"]):
+                    engine.toggle_source(src["id"], new_state)
+                    st.rerun()
+
+    # ── TAB 3: MANUAL CAPTURE ─────────────────────────────────────
+    with tab3:
         st.markdown("#### Capture New Job Opportunity")
         st.caption("Paste job details from LinkedIn, IIMjobs, company portals, or campus placement postings.")
 
@@ -114,19 +185,19 @@ def render(db: DatabaseConnection):
                         description=description.strip(),
                         is_manually_entered=True,
                     )
-                    job_id, is_new = repo.add_or_update_job(job_obj)
+                    job_id, is_new = tracker_repo.add_or_update_job(job_obj)
                     if is_new:
                         st.success(f"Added new opportunity: **{title}** at **{company}**!")
                     else:
                         st.info(f"Updated existing opportunity: **{title}** at **{company}** (Deduplicated)")
                     st.rerun()
 
-    # ── TAB 3: SEARCH PROFILES ────────────────────────────────────
-    with tab3:
+    # ── TAB 4: SEARCH PROFILES ────────────────────────────────────
+    with tab4:
         st.markdown("#### MBA Search Profiles")
         st.caption("Configure target domains, roles, and compensation preferences to filter opportunities.")
 
-        profiles = repo.list_profiles()
+        profiles = tracker_repo.list_profiles()
         for prof in profiles:
             with st.expander(f"{'⭐ [DEFAULT] ' if prof.is_default else '🎯 '}{prof.name}", expanded=prof.is_default):
                 p_c1, p_c2 = st.columns([3, 1])
@@ -142,10 +213,10 @@ def render(db: DatabaseConnection):
                 with p_c2:
                     if not prof.is_default:
                         if st.button("⭐ Set Default", key=f"prof_def_{prof.id}", use_container_width=True):
-                            repo.set_default_profile(prof.id)
+                            tracker_repo.set_default_profile(prof.id)
                             st.rerun()
                     if st.button("🗑️ Delete", key=f"prof_del_{prof.id}", use_container_width=True):
-                        repo.delete_profile(prof.id)
+                        tracker_repo.delete_profile(prof.id)
                         st.rerun()
 
         st.markdown("---")
@@ -168,6 +239,6 @@ def render(db: DatabaseConnection):
                     preferred_industries=[i.strip() for i in p_ind.split(",") if i.strip()],
                     min_salary=p_min_sal,
                 )
-                repo.create_profile(new_profile)
+                tracker_repo.create_profile(new_profile)
                 st.success(f"Created profile '{prof_name}'!")
                 st.rerun()
