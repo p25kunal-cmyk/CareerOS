@@ -249,8 +249,8 @@ elif selected == "Resume Templates":
     render(db)
 
 elif selected == "Find Jobs":
-    from src.ui.components import coming_soon
-    coming_soon("Find Jobs", "Phase 3–4")
+    from src.ui.jobs_page import render
+    render(db)
 
 elif selected == "Job Matching":
     from src.ui.components import coming_soon
@@ -261,8 +261,8 @@ elif selected == "Resume Optimization":
     coming_soon("Resume Optimization", "Phase 6")
 
 elif selected == "Application Tracker":
-    from src.ui.components import coming_soon
-    coming_soon("Application Tracker", "Phase 3")
+    from src.ui.tracker_page import render
+    render(db)
 
 elif selected == "Automation":
     from src.ui.components import coming_soon
