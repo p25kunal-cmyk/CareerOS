@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data (keep structure, ignore user content)
+data/uploads/*
+!data/uploads/.gitkeep
+data/exports/*
+!data/exports/.gitkeep
+data/backups/*
+!data/backups/.gitkeep
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test / Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
