@@ -237,16 +237,16 @@ elif selected == "Settings":
     render(db)
 
 elif selected == "My Resumes":
-    from src.ui.components import coming_soon
-    coming_soon("My Resumes", "Phase 2")
+    from src.ui.resume_manager_page import render
+    render(db)
 
 elif selected == "Resume Editor":
-    from src.ui.components import coming_soon
-    coming_soon("Resume Editor", "Phase 2")
+    from src.ui.resume_editor_page import render
+    render(db)
 
 elif selected == "Resume Templates":
-    from src.ui.components import coming_soon
-    coming_soon("Resume Templates", "Phase 2")
+    from src.ui.resume_templates_page import render
+    render(db)
 
 elif selected == "Find Jobs":
     from src.ui.components import coming_soon
