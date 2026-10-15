@@ -253,8 +253,8 @@ elif selected == "Find Jobs":
     render(db)
 
 elif selected == "Job Matching":
-    from src.ui.components import coming_soon
-    coming_soon("Job Matching", "Phase 5")
+    from src.ui.matching_page import render
+    render(db)
 
 elif selected == "Resume Optimization":
     from src.ui.components import coming_soon
