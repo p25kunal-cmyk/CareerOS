@@ -196,6 +196,7 @@ PAGES = [
     ("🎯", "Job Matching"),
     ("⚡", "Resume Optimization"),
     ("📋", "Application Tracker"),
+    ("🔌", "API & Extension"),
     ("🤖", "Automation"),
     ("⚙️",  "Settings"),
 ]
@@ -225,7 +226,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.caption("CareerOS v0.1.0 · Phase 1")
+    st.caption("CareerOS v0.7.0 · Phase 7")
 
 # ── Page router ───────────────────────────────────────────────
 if selected == "Dashboard":
@@ -262,6 +263,10 @@ elif selected == "Resume Optimization":
 
 elif selected == "Application Tracker":
     from src.ui.tracker_page import render
+    render(db)
+
+elif selected == "API & Extension":
+    from src.ui.api_page import render
     render(db)
 
 elif selected == "Automation":

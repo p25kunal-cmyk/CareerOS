@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380, initial-scale=1.0">
+  <title>CareerOS</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">
+      <span class="logo-icon">🚀</span>
+      <h1>CareerOS</h1>
+    </div>
+    <div id="connection-badge" class="badge badge--offline">
+      <span class="badge-dot"></span>
+      <span class="badge-text">Offline</span>
+    </div>
+  </header>
+
+  <!-- Connection Setup (shown when not configured) -->
+  <section id="setup-panel" class="panel setup-panel" style="display:none">
+    <div class="panel-icon">🔌</div>
+    <h2>Connect to CareerOS</h2>
+    <p>Enter the API details from your CareerOS dashboard.</p>
+    <div class="form-group">
+      <label for="api-port">Port</label>
+      <input type="number" id="api-port" value="8400" min="1024" max="65535">
+    </div>
+    <div class="form-group">
+      <label for="api-token">API Token</label>
+      <input type="password" id="api-token" placeholder="Paste token from Settings page">
+    </div>
+    <button id="btn-connect" class="btn btn--primary btn--full">Connect</button>
+  </section>
+
+  <!-- Main Content (shown when connected) -->
+  <main id="main-content" style="display:none">
+    <!-- Quick Save Job Form -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">💼</span>
+        <h3>Save Job</h3>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="job-title">Job Title *</label>
+          <input type="text" id="job-title" placeholder="e.g., Product Manager" required>
+        </div>
+        <div class="form-group">
+          <label for="job-company">Company *</label>
+          <input type="text" id="job-company" placeholder="e.g., Google" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group--half">
+            <label for="job-location">Location</label>
+            <input type="text" id="job-location" placeholder="e.g., Bangalore">
+          </div>
+          <div class="form-group form-group--half">
+            <label for="job-type">Type</label>
+            <select id="job-type">
+              <option value="Full-time">Full-time</option>
+              <option value="Internship">Internship</option>
+              <option value="Contract">Contract</option>
+              <option value="Part-time">Part-time</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="job-skills">Skills <span class="hint">(comma separated)</span></label>
+          <input type="text" id="job-skills" placeholder="e.g., Python, SQL, Product Strategy">
+        </div>
+        <div class="form-group">
+          <label for="job-url">Source URL</label>
+          <input type="url" id="job-url" placeholder="Auto-filled from current tab" readonly>
+        </div>
+        <button id="btn-save-job" class="btn btn--primary btn--full">
+          <span class="btn-icon">💾</span> Save Job
+        </button>
+        <div id="save-feedback" class="feedback" style="display:none"></div>
+      </div>
+    </section>
+
+    <!-- Pipeline Summary -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">📊</span>
+        <h3>Pipeline</h3>
+        <button id="btn-refresh-stats" class="btn btn--icon" title="Refresh">🔄</button>
+      </div>
+      <div class="card-body" id="pipeline-stats">
+        <div class="pipeline-loading">Loading pipeline...</div>
+      </div>
+    </section>
+
+    <!-- Recent Jobs -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">📋</span>
+        <h3>Recent Jobs</h3>
+      </div>
+      <div class="card-body" id="recent-jobs">
+        <div class="pipeline-loading">Loading jobs...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="js/popup.js"></script>
+</body>
+</html>

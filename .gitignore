@@ -48,3 +48,8 @@ logs/
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+
+# Local API secrets and process IDs
+data/.api_token
+data/.api_pid
+data/*.token
