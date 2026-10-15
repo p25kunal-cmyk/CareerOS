@@ -226,7 +226,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.caption("CareerOS v0.7.0 · Phase 7")
+    st.caption("CareerOS v1.0.0 · Production Ready")
 
 # ── Page router ───────────────────────────────────────────────
 if selected == "Dashboard":
@@ -270,5 +270,5 @@ elif selected == "API & Extension":
     render(db)
 
 elif selected == "Automation":
-    from src.ui.components import coming_soon
-    coming_soon("Automation", "Phase 8")
+    from src.ui.automation_page import render
+    render(db)
