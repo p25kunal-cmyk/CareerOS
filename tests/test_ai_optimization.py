@@ -104,3 +104,32 @@ def test_resume_optimizer_and_branch_application(db):
     applied_sug = next(s for s in sugs_after_apply if s["id"] == sug_id)
     assert applied_sug["is_applied"] == 1
     assert applied_sug["applied_to_version_id"] == v2.id
+
+
+def test_ai_provider_factory_selection(db):
+    """Test dynamic selection of AI providers based on database user settings."""
+    from src.ai.provider import get_ai_provider, GeminiProvider, OpenAIProvider, RuleBasedOfflineProvider
+
+    # Default without key
+    p_default = get_ai_provider(db)
+    assert isinstance(p_default, RuleBasedOfflineProvider)
+
+    # Configure Gemini
+    with db.transaction() as conn:
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_provider', 'google', 'ai')")
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_api_key', 'AIzaSyFakeTestKey123456789', 'ai')")
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_model', 'gemini-1.5-flash', 'ai')")
+
+    p_gemini = get_ai_provider(db)
+    assert isinstance(p_gemini, GeminiProvider)
+    assert p_gemini.model == "gemini-1.5-flash"
+
+    # Configure OpenAI
+    with db.transaction() as conn:
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_provider', 'openai', 'ai')")
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_api_key', 'sk-fakeopenai1234567890abcdef', 'ai')")
+        conn.execute("INSERT OR REPLACE INTO user_settings (key, value, category) VALUES ('ai_model', 'gpt-4o-mini', 'ai')")
+
+    p_openai = get_ai_provider(db)
+    assert isinstance(p_openai, OpenAIProvider)
+    assert p_openai.model == "gpt-4o-mini"
