@@ -200,6 +200,7 @@ PAGES = [
     ("🤖", "Automation"),
     ("⚙️",  "Settings"),
 ]
+PAGE_ICONS = {name: emoji for emoji, name in PAGES}
 
 with st.sidebar:
     st.markdown(
@@ -221,7 +222,7 @@ with st.sidebar:
         "Navigation",
         [name for _, name in PAGES],
         index=default_idx,
-        format_func=lambda x: f"{dict(PAGES)[x]} {x}",
+        format_func=lambda x: f"{PAGE_ICONS.get(x, chr(32))} {x}",
         label_visibility="collapsed",
     )
 
