@@ -11,6 +11,7 @@ from src.database.connection import DatabaseConnection
 from src.resume.repository import ResumeRepository
 from src.tracker.models import ApplicationRecord
 from src.tracker.repository import TrackerRepository
+from src.ui.components import render_top_header, navigate_to
 
 STATUS_CONFIG = {
     "saved": {"label": "Saved", "icon": "📌", "color": "#64748b"},
@@ -38,6 +39,8 @@ def render(db: DatabaseConnection):
     """Render Application Tracker page."""
     tracker_repo = TrackerRepository(db)
     resume_repo = ResumeRepository(db)
+
+    render_top_header("Application Tracker", db)
 
     st.markdown("## 📋 Application Tracker")
     st.caption("Manage your job application pipeline through every stage from bookmark to offer.")

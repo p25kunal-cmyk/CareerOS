@@ -81,9 +81,39 @@ class ResumeParser:
         """Parse resume from a file path or in-memory byte buffer."""
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":
-            return self._parse_pdf(file_path_or_bytes)
-        elif ext in (".docx", ".doc"):
-            return self._parse_docx(file_path_or_bytes)
+            try:
+                return self._parse_pdf(file_path_or_bytes)
+            except Exception as e:
+                logger.error("PDF parsing failed: %s", e)
+                raise ValueError(
+                    f"Could not parse PDF file '{filename}'. "
+                    "The file may be corrupted, password-protected, or a scanned image. "
+                    "Try saving it as a new PDF or converting to DOCX/TXT."
+                ) from e
+        elif ext == ".docx":
+            try:
+                return self._parse_docx(file_path_or_bytes)
+            except Exception as e:
+                logger.error("DOCX parsing failed: %s", e)
+                raise ValueError(
+                    f"Could not parse DOCX file '{filename}'. "
+                    "The file may be corrupted or in an unsupported format."
+                ) from e
+        elif ext == ".doc":
+            # Old .doc format: try as DOCX first, then fall back to text extraction
+            try:
+                return self._parse_docx(file_path_or_bytes)
+            except Exception:
+                logger.warning("DOCX parse failed for .doc file, falling back to text extraction")
+                try:
+                    return self._parse_text(file_path_or_bytes)
+                except Exception as e2:
+                    logger.error("Text fallback also failed for .doc: %s", e2)
+                    raise ValueError(
+                        f"Could not parse .doc file '{filename}'. "
+                        "Old .doc format has limited support. Please save as .docx or .pdf first, "
+                        "then re-upload."
+                    ) from e2
         elif ext in (".txt", ".md"):
             return self._parse_text(file_path_or_bytes)
         else:

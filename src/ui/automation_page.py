@@ -17,7 +17,7 @@ from config.settings import settings
 from src.database.connection import DatabaseConnection
 from src.automation.backup import BackupManager
 from src.automation.scheduler import AutomationScheduler, AutomationRepository
-from src.ui.components import section_header, metric_card, empty_state
+from src.ui.components import section_header, metric_card, empty_state, render_top_header
 from src.utils.logger import get_logger
 
 logger = get_logger("ui.automation_page")
@@ -32,6 +32,8 @@ def _get_scheduler(db: DatabaseConnection) -> AutomationScheduler:
 
 def render(db: DatabaseConnection) -> None:
     """Render the Automation and Maintenance dashboard."""
+    render_top_header("Automation", db)
+
     section_header(
         "🤖 Automation & System Maintenance",
         "Manage automated database snapshots, background job discovery, reminders, and health diagnostics.",

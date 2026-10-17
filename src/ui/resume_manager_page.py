@@ -1,6 +1,7 @@
 """Streamlit UI page for Resume Management and Import.
 
-Provides resume upload, parsing preview, library management, and version diffing.
+Provides resume upload, parsing preview, library management, live visual previewing,
+and version diffing.
 """
 
 from __future__ import annotations
@@ -12,9 +13,13 @@ import streamlit as st
 from src.database.connection import DatabaseConnection
 from src.resume.diff import ResumeDiffer
 from src.resume.exporter import ResumeExporter
+from src.resume.models import ResumeVersionData
 from src.resume.parser import ResumeParser
 from src.resume.repository import ResumeRepository
+from src.resume.sample_data import create_sample_mba_resume
 from src.resume.templates import TEMPLATES
+from src.ui.components import empty_state, navigate_to, render_top_header
+from src.ui.resume_preview import render_resume_preview_component
 
 
 def render(db: DatabaseConnection):
@@ -22,8 +27,10 @@ def render(db: DatabaseConnection):
     repo = ResumeRepository(db)
     parser = ResumeParser()
 
-    st.markdown("## 📄 Resume Management")
-    st.caption("Upload, organize, tailor, and version your master and job-specific resumes.")
+    render_top_header("My Resumes", db)
+
+    st.markdown("## 📄 Resume Management & Library")
+    st.caption("Upload, organize, preview, tailor, and version your master and job-specific resumes.")
 
     resumes = repo.list_resumes()
     master_resume = next((r for r in resumes if r.is_master), None)
@@ -71,16 +78,33 @@ def render(db: DatabaseConnection):
 
     st.markdown("---")
 
-    tab1, tab2, tab3 = st.tabs(["📚 Resume Library", "📥 Import & Parse", "🔍 Compare Versions (Diff)"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📚 Resume Library",
+        "📥 Import & Parse",
+        "👁️ Live Document Preview",
+        "🔍 Compare Versions (Diff)",
+    ])
 
     # ── TAB 1: LIBRARY ────────────────────────────────────────────
     with tab1:
         if not resumes:
-            st.info("No resumes uploaded yet. Go to the **Import & Parse** tab to upload your master resume.")
+            empty_state(
+                "📭",
+                "No Resumes Found in Library",
+                "Get started in seconds by loading our battle-tested MBA Master Resume or upload your own file.",
+            )
+            c_act1, c_act2 = st.columns(2)
+            with c_act1:
+                if st.button("✨ Load High-Impact MBA Sample Resume (IIM Format)", type="primary", use_container_width=True):
+                    r_id, v_id = create_sample_mba_resume(repo)
+                    navigate_to("My Resumes", active_resume_id=r_id, active_version_id=v_id)
+            with c_act2:
+                if st.button("📥 Upload Your Own Resume File", use_container_width=True):
+                    st.info("Switch to the '📥 Import & Parse' tab above to upload your PDF, DOCX, or TXT file.")
         else:
             for r in resumes:
                 with st.expander(f"{'⭐ [MASTER] ' if r.is_master else '📄 '}{r.name} · ({r.version_count} versions)", expanded=r.is_master):
-                    c_info, c_actions = st.columns([3, 2])
+                    c_info, c_actions = st.columns([3, 3])
                     with c_info:
                         st.markdown(f"**Original File:** `{r.original_filename or 'Manual / Imported'}` ({r.file_type or 'custom'})")
                         st.markdown(f"**Last Updated:** `{r.updated_at}`")
@@ -88,14 +112,16 @@ def render(db: DatabaseConnection):
                             st.caption(f"Notes: {r.notes}")
 
                     with c_actions:
-                        subcol1, subcol2 = st.columns(2)
+                        subcol1, subcol2, subcol3 = st.columns(3)
                         with subcol1:
-                            if st.button("✏️ Edit Resume", key=f"edit_{r.id}", use_container_width=True):
-                                st.session_state["active_resume_id"] = r.id
-                                st.session_state["nav_target"] = "Resume Editor"
-                                st.rerun()
+                            if st.button("✏️ Edit", key=f"edit_{r.id}", use_container_width=True):
+                                navigate_to("Resume Editor", active_resume_id=r.id)
 
                         with subcol2:
+                            if st.button("👁️ Preview", key=f"pv_btn_{r.id}", type="primary", use_container_width=True):
+                                navigate_to("Resume Preview", active_resume_id=r.id)
+
+                        with subcol3:
                             if not r.is_master:
                                 if st.button("⭐ Set Master", key=f"master_{r.id}", use_container_width=True):
                                     repo.set_master_resume(r.id)
@@ -105,30 +131,58 @@ def render(db: DatabaseConnection):
                         # Export options
                         latest_v = repo.get_latest_version(r.id)
                         if latest_v:
-                            docx_bytes = ResumeExporter.export_docx(latest_v, "iim_nagpur")
-                            st.download_button(
-                                label="📥 Export DOCX (IIM Format)",
-                                data=docx_bytes,
-                                file_name=f"{r.name.replace(' ', '_')}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"dl_docx_{r.id}",
-                                use_container_width=True,
+                            dl_c1, dl_c2 = st.columns(2)
+                            with dl_c1:
+                                docx_bytes = ResumeExporter.export_docx(latest_v, "iim_nagpur")
+                                st.download_button(
+                                    label="📥 Word (.docx)",
+                                    data=docx_bytes,
+                                    file_name=f"{r.name.replace(' ', '_')}.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    key=f"dl_docx_{r.id}",
+                                    use_container_width=True,
+                                )
+                            with dl_c2:
+                                pdf_bytes = ResumeExporter.export_pdf(latest_v, "iim_nagpur")
+                                st.download_button(
+                                    label="📕 PDF (.pdf)",
+                                    data=pdf_bytes,
+                                    file_name=f"{r.name.replace(' ', '_')}.pdf",
+                                    mime="application/pdf",
+                                    key=f"dl_pdf_{r.id}",
+                                    use_container_width=True,
+                                )
+
+                    # Inline quick document preview accordion
+                    with st.expander("👁️ Quick View Document Sheet", expanded=False):
+                        latest_v = repo.get_latest_version(r.id)
+                        if latest_v:
+                            render_resume_preview_component(
+                                version_data=latest_v,
+                                resume_name=r.name,
+                                default_template="iim_nagpur",
+                                key_prefix=f"inline_{r.id}",
+                                show_toolbar=True,
+                                show_export_buttons=False,
                             )
 
                     # Versions sub-list
                     st.markdown("##### Version History")
                     versions = repo.list_versions(r.id)
                     for v in versions:
-                        v_col1, v_col2, v_col3 = st.columns([3, 2, 2])
+                        v_col1, v_col2, v_col3, v_col4 = st.columns([3, 2, 1, 1])
                         with v_col1:
                             st.markdown(f"- **{v['version_name']}** (`v{v['version_number']}`) — {v.get('description') or 'No description'}")
                         with v_col2:
                             st.caption(f"Created: {v['created_at']}")
                         with v_col3:
-                            if st.button("Branch Variant", key=f"branch_{v['id']}"):
+                            if st.button("Branch", key=f"branch_{v['id']}", help="Fork a new tailored variant"):
                                 new_v = repo.fork_version(v["id"], f"{v['version_name']} - Variant")
                                 st.success(f"Created branch {new_v.version_name}!")
                                 st.rerun()
+                        with v_col4:
+                            if st.button("Edit", key=f"edit_ver_{v['id']}", help="Open in editor"):
+                                navigate_to("Resume Editor", active_resume_id=r.id, active_version_id=v["id"])
 
     # ── TAB 2: IMPORT & PARSE ─────────────────────────────────────
     with tab2:
@@ -151,9 +205,9 @@ def render(db: DatabaseConnection):
                     parsed = parser.parse_file(file_bytes, uploaded_file.name)
                     st.success(f"Successfully parsed **{uploaded_file.name}** ({len(parsed.sections)} sections detected)")
 
-                    # Parse preview
+                    # Parse preview summary
                     st.markdown("---")
-                    st.markdown("##### Extraction Preview")
+                    st.markdown("##### Extraction Summary")
 
                     p_col1, p_col2 = st.columns(2)
                     with p_col1:
@@ -174,6 +228,25 @@ def render(db: DatabaseConnection):
                         for w in parsed.warnings:
                             st.warning(w)
 
+                    # LIVE PREVIEW OF PARSED DOCUMENT BEFORE SAVING
+                    st.markdown("##### 👁️ Live Document Preview (Parsed Content)")
+                    st.caption("Verify how your extracted resume looks rendered in paper format before saving.")
+                    temp_preview_ver = ResumeVersionData(
+                        id="temp_import_preview",
+                        resume_id="temp_import_preview",
+                        version_name="Imported Version",
+                        version_number=1,
+                        sections=parsed.sections,
+                    )
+                    render_resume_preview_component(
+                        version_data=temp_preview_ver,
+                        resume_name=resume_name,
+                        default_template="iim_nagpur",
+                        key_prefix="import_parsed_pv",
+                        show_toolbar=True,
+                        show_export_buttons=False,
+                    )
+
                     if st.button("💾 Save Resume to Database", type="primary", use_container_width=True):
                         r_id, v_id = repo.save_parsed_resume(
                             resume_name=resume_name,
@@ -181,17 +254,52 @@ def render(db: DatabaseConnection):
                             original_filename=uploaded_file.name,
                             is_master=is_master,
                         )
-                        st.session_state["active_resume_id"] = r_id
-                        st.session_state["active_version_id"] = v_id
                         st.success(f"Resume '{resume_name}' saved successfully!")
-                        st.session_state["nav_target"] = "Resume Editor"
-                        st.rerun()
+                        navigate_to("Resume Editor", active_resume_id=r_id, active_version_id=v_id)
 
                 except Exception as e:
                     st.error(f"Error parsing resume: {str(e)}")
 
-    # ── TAB 3: VISUAL DIFF ────────────────────────────────────────
+    # ── TAB 3: LIVE DOCUMENT PREVIEW ─────────────────────────────
     with tab3:
+        if not resumes:
+            st.info("No resumes uploaded yet to preview.")
+        else:
+            default_res_id = st.session_state.get("active_resume_id", resumes[0].id)
+            res_index = next((i for i, r in enumerate(resumes) if r.id == default_res_id), 0)
+
+            c_pick1, c_pick2 = st.columns(2)
+            with c_pick1:
+                cur_res = st.selectbox(
+                    "Select Resume to Preview",
+                    resumes,
+                    index=res_index,
+                    format_func=lambda r: f"{'⭐ ' if r.is_master else ''}{r.name}",
+                    key="tab_pv_res_select",
+                )
+            with c_pick2:
+                r_versions = repo.list_versions(cur_res.id)
+                ver_sel = st.selectbox(
+                    "Select Version",
+                    r_versions,
+                    format_func=lambda v: f"{v['version_name']} (v{v['version_number']})",
+                    key="tab_pv_ver_select",
+                )
+
+            if ver_sel:
+                ver_obj = repo.get_version(ver_sel["id"])
+                if ver_obj:
+                    render_resume_preview_component(
+                        version_data=ver_obj,
+                        resume_name=cur_res.name,
+                        default_template="iim_nagpur",
+                        key_prefix=f"tab3_{cur_res.id}",
+                        show_toolbar=True,
+                        show_export_buttons=True,
+                    )
+
+    # ── TAB 4: VISUAL DIFF ────────────────────────────────────────
+    with tab4:
         st.markdown("#### Version Comparison & Visual Diff")
         st.caption("Compare two versions to inspect additions, deletions, rephrasings, and similarity score.")
 

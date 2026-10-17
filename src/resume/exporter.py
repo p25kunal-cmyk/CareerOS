@@ -420,3 +420,304 @@ class ResumeExporter:
             logger.info("Exported PDF to %s (%d bytes)", output_path, len(pdf_bytes))
 
         return pdf_bytes
+
+    @classmethod
+    def render_pdf_pages_as_images(
+        cls,
+        version: ResumeVersionData,
+        template_id: str = "iim_nagpur",
+        dpi: int = 150,
+    ) -> List[bytes]:
+        """Render each page of the exported PDF as a PNG image using PyMuPDF."""
+        pdf_bytes = cls.export_pdf(version, template_id)
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        pages_images: List[bytes] = []
+        for page in doc:
+            pix = page.get_pixmap(dpi=dpi)
+            pages_images.append(pix.tobytes("png"))
+        doc.close()
+        return pages_images
+
+    @classmethod
+    def export_html(
+        cls,
+        version: ResumeVersionData,
+        template_id: str = "iim_nagpur",
+        highlight_metrics: bool = False,
+        zoom: float = 1.0,
+    ) -> str:
+        """Render version into a pixel-precise, beautifully styled HTML/CSS resume document."""
+        tmpl = get_template(template_id)
+
+        # ── Header / Contact ──────────────────────────────────────────
+        contact_sec = next((s for s in version.sections if s.section_type == "contact" and s.is_visible), None)
+        candidate_name = "Candidate Name"
+        contact_lines: List[str] = []
+
+        if contact_sec:
+            for b in contact_sec.bullets:
+                if b.bullet_type == "header":
+                    candidate_name = b.content
+                else:
+                    contact_lines.append(b.content)
+        else:
+            candidate_name = version.version_name or "Resume"
+
+        # Format contact line
+        contact_html_items = []
+        for line in contact_lines:
+            parts = [p.strip() for p in line.split("|") if p.strip()]
+            for p in parts:
+                contact_html_items.append(f"<span>{p}</span>")
+
+        contact_html = ' <span class="sep">•</span> '.join(contact_html_items)
+
+        # ── Sections ──────────────────────────────────────────────────
+        visible_sections = [s for s in version.sections if s.section_type != "contact" and s.is_visible]
+        visible_sections.sort(key=lambda s: s.display_order)
+
+        sections_html = []
+        for sec in visible_sections:
+            sec_header_border = f"border-bottom: 1.5px solid {tmpl.accent_color_hex};" if tmpl.header_underline else ""
+            sec_body = []
+
+            is_edu = sec.section_type == "education"
+            has_pipe_rows = any("|" in b.content for b in sec.bullets)
+
+            if is_edu and has_pipe_rows:
+                # Render clean MBA education table
+                rows_data = []
+                for b in sec.bullets:
+                    parts = [p.strip() for p in b.content.split("|") if p.strip()]
+                    if len(parts) >= 3:
+                        rows_data.append(parts)
+
+                if rows_data:
+                    col_count = max(len(r) for r in rows_data)
+                    norm_rows = [r + [""] * (col_count - len(r)) for r in rows_data]
+
+                    table_rows_html = []
+                    for r_idx, r in enumerate(norm_rows):
+                        is_head = (r_idx == 0 and any(w in r[0].lower() for w in ("degree", "qualification", "programme", "course", "year")))
+                        tag = "th" if is_head else "td"
+                        tds = "".join(f"<{tag}>{c}</{tag}>" for c in r)
+                        tr_cls = ' class="table-header-row"' if is_head else ""
+                        table_rows_html.append(f"<tr{tr_cls}>{tds}</tr>")
+
+                    sec_body.append(f"""
+                    <table class="edu-table">
+                        <tbody>
+                            {"".join(table_rows_html)}
+                        </tbody>
+                    </table>
+                    """)
+                else:
+                    for b in sec.bullets:
+                        sec_body.append(cls._bullet_to_html(b, highlight_metrics))
+            else:
+                for b in sec.bullets:
+                    sec_body.append(cls._bullet_to_html(b, highlight_metrics))
+
+            sections_html.append(f"""
+            <div class="resume-section">
+                <div class="section-title" style="{sec_header_border} color: {tmpl.accent_color_hex};">
+                    {sec.title.upper()}
+                </div>
+                <div class="section-content">
+                    {"".join(sec_body)}
+                </div>
+            </div>
+            """)
+
+        zoom_percent = int(zoom * 100)
+
+        html = f"""
+        <div class="resume-wrapper" style="zoom: {zoom};">
+            <style>
+                .resume-wrapper {{
+                    display: flex;
+                    justify-content: center;
+                    padding: 1rem 0;
+                    background: transparent;
+                }}
+                .resume-paper {{
+                    background: #ffffff;
+                    color: {tmpl.header_color_hex};
+                    font-family: '{tmpl.font_family}', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    width: 100%;
+                    max-width: 820px;
+                    min-height: 1050px;
+                    padding: {tmpl.margin_top_inches * 72}px {tmpl.margin_left_inches * 72}px;
+                    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                    font-size: {tmpl.font_size_body}pt;
+                    line-height: {tmpl.line_spacing};
+                }}
+                .candidate-header {{
+                    text-align: center;
+                    margin-bottom: 12px;
+                }}
+                .candidate-name {{
+                    font-size: {tmpl.font_size_name}pt;
+                    font-weight: 700;
+                    color: {tmpl.header_color_hex};
+                    margin: 0 0 4px 0;
+                    letter-spacing: -0.01em;
+                }}
+                .candidate-contact {{
+                    font-size: {tmpl.font_size_sub}pt;
+                    color: #475569;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 6px;
+                    line-height: 1.3;
+                }}
+                .candidate-contact .sep {{
+                    color: #94a3b8;
+                    margin: 0 2px;
+                }}
+                .resume-section {{
+                    margin-top: 10px;
+                    margin-bottom: 6px;
+                }}
+                .section-title {{
+                    font-size: {tmpl.font_size_header}pt;
+                    font-weight: 700;
+                    letter-spacing: 0.05em;
+                    padding-bottom: 2px;
+                    margin-bottom: 5px;
+                }}
+                .section-content {{
+                    padding: 0 1px;
+                }}
+                .item-header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    font-size: {tmpl.font_size_body}pt;
+                    font-weight: 700;
+                    color: {tmpl.header_color_hex};
+                    margin-top: 5px;
+                    margin-bottom: 1px;
+                }}
+                .item-subheader {{
+                    font-size: {tmpl.font_size_sub}pt;
+                    color: #475569;
+                    font-style: italic;
+                    margin-bottom: 2px;
+                }}
+                .item-text {{
+                    margin: 2px 0;
+                    font-size: {tmpl.font_size_body}pt;
+                }}
+                .bullet-list {{
+                    margin: 2px 0 5px 0;
+                    padding-left: 18px;
+                }}
+                .bullet-item {{
+                    font-size: {tmpl.font_size_body}pt;
+                    margin-bottom: {tmpl.space_after_bullet_pt + 1}px;
+                    color: #1e293b;
+                    line-height: {tmpl.line_spacing};
+                }}
+                .edu-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 4px 0 8px 0;
+                    font-size: {tmpl.font_size_sub + 0.5}pt;
+                }}
+                .edu-table th, .edu-table td {{
+                    border: 1px solid {tmpl.table_border_color_hex};
+                    padding: 3px 6px;
+                    text-align: left;
+                }}
+                .edu-table th {{
+                    background: #f8fafc;
+                    font-weight: 700;
+                    color: #0f172a;
+                }}
+                .edu-table td:last-child, .edu-table th:last-child {{
+                    text-align: right;
+                }}
+                .metric-pill {{
+                    background: #ecfdf5;
+                    color: #065f46;
+                    font-weight: 600;
+                    padding: 0 3px;
+                    border-radius: 3px;
+                    border: 1px solid #a7f3d0;
+                }}
+                .verb-pill {{
+                    color: #1e40af;
+                    font-weight: 600;
+                }}
+                @media print {{
+                    body {{ background: transparent !important; }}
+                    .resume-wrapper {{ padding: 0 !important; }}
+                    .resume-paper {{
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        padding: 0 !important;
+                    }}
+                }}
+            </style>
+            <div class="resume-paper">
+                <div class="candidate-header">
+                    <div class="candidate-name">{candidate_name}</div>
+                    <div class="candidate-contact">{contact_html}</div>
+                </div>
+                {"".join(sections_html)}
+            </div>
+        </div>
+        """
+        return html
+
+    @classmethod
+    def _bullet_to_html(cls, b: BulletItem, highlight_metrics: bool = False) -> str:
+        """Convert a single bullet into clean semantic HTML."""
+        content = b.content.strip()
+
+        if b.bullet_type in ("header", "subheader"):
+            # If header contains separation like '|' or '—', format into flex row
+            if "—" in content:
+                parts = [p.strip() for p in content.split("—", 1)]
+                return f"""
+                <div class="item-header">
+                    <span>{parts[0]}</span>
+                    <span style="font-weight: normal; font-size: 0.9em; color: #475569;">{parts[1]}</span>
+                </div>
+                """
+            elif "|" in content:
+                parts = [p.strip() for p in content.split("|", 1)]
+                return f"""
+                <div class="item-header">
+                    <span>{parts[0]}</span>
+                    <span style="font-weight: normal; font-size: 0.9em; color: #475569;">{parts[1]}</span>
+                </div>
+                """
+            else:
+                return f'<div class="item-header"><span>{content}</span></div>'
+
+        if b.bullet_type == "text":
+            return f'<div class="item-text">{content}</div>'
+
+        # Regular bullet item
+        clean_text = re.sub(r"^[\s•\-\*–—\?]+", "", content).strip()
+
+        if highlight_metrics:
+            # Highlight action verb if present
+            if b.action_verb and b.action_verb.lower() in clean_text.lower():
+                # case-insensitive replace of the first occurrence
+                pattern = re.compile(re.escape(b.action_verb), re.IGNORECASE)
+                clean_text = pattern.sub(f'<span class="verb-pill">{b.action_verb.title()}</span>', clean_text, count=1)
+
+            # Highlight metrics if present
+            for m in b.metrics:
+                if m in clean_text:
+                    clean_text = clean_text.replace(m, f'<span class="metric-pill">{m}</span>')
+
+        return f'<ul class="bullet-list" style="list-style-type: disc;"><li class="bullet-item">{clean_text}</li></ul>'

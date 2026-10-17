@@ -19,7 +19,7 @@ from typing import Optional
 import streamlit as st
 
 from src.database.connection import DatabaseConnection
-from src.ui.components import section_header, metric_card, empty_state
+from src.ui.components import section_header, metric_card, empty_state, render_top_header
 from src.utils.logger import get_logger
 from config.settings import settings
 
@@ -130,6 +130,8 @@ def _stop_server() -> bool:
 
 def render(db: DatabaseConnection):
     """Render the API & Extension management page."""
+    render_top_header("API & Extension", db)
+
     section_header(
         "⚡ API & Chrome Extension",
         "Manage the local REST API and connect the CareerOS Chrome extension.",

@@ -95,3 +95,40 @@ def test_export_text(sample_version):
     txt = ResumeExporter.export_text(sample_version)
     assert "WORK EXPERIENCE" in txt
     assert "Deloitte Consulting" in txt
+
+
+def test_export_html(sample_version):
+    """Test generating structured, styled HTML resume."""
+    html = ResumeExporter.export_html(sample_version, template_id="iim_nagpur", highlight_metrics=True)
+    assert "resume-paper" in html
+    assert "Ananya Sen" in html
+    assert "WORK EXPERIENCE" in html
+    assert "Deloitte Consulting" in html
+    assert "edu-table" in html  # Education table check
+
+
+def test_render_pdf_pages_as_images(sample_version):
+    """Test rasterizing PDF vector pages into image bytes."""
+    images = ResumeExporter.render_pdf_pages_as_images(sample_version, template_id="iim_nagpur", dpi=100)
+    assert len(images) >= 1
+    assert isinstance(images[0], bytes)
+    assert len(images[0]) > 5000  # Non-trivial PNG image
+
+
+def test_sample_mba_resume_creation(db):
+    """Test creating the high-impact MBA sample resume."""
+    from src.resume.repository import ResumeRepository
+    from src.resume.sample_data import create_sample_mba_resume
+
+    repo = ResumeRepository(db)
+    r_id, v_id = create_sample_mba_resume(repo)
+    assert r_id is not None
+    assert v_id is not None
+
+    resumes = repo.list_resumes()
+    assert len(resumes) >= 1
+    assert any(r.is_master for r in resumes)
+
+    version_data = repo.get_version(v_id)
+    assert version_data is not None
+    assert len(version_data.sections) >= 6

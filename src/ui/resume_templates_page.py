@@ -8,10 +8,13 @@ from __future__ import annotations
 import streamlit as st
 from src.database.connection import DatabaseConnection
 from src.resume.templates import TEMPLATES, TemplateConfig
+from src.ui.components import render_top_header, navigate_to
 
 
 def render(db: DatabaseConnection):
     """Render the Resume Templates page."""
+    render_top_header("Resume Templates", db)
+
     st.markdown("## 📐 Resume Templates & Formats")
     st.caption("Standardized, recruiter-approved resume layouts tailored for MBA placement and corporate hiring.")
 
@@ -36,6 +39,9 @@ def render(db: DatabaseConnection):
                 f'</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+            if st.button(f"👁️ Preview in {tmpl.name[:12]}...", key=f"tmpl_pv_{t_id}", use_container_width=True):
+                navigate_to("Resume Preview")
 
     st.markdown("---")
     st.markdown("### 🎓 IIM Nagpur Placement Specification & Order")
@@ -51,4 +57,4 @@ def render(db: DatabaseConnection):
     8. **Achievements & Extra-curricular**: National case competition wins, sports, community leadership.
     """)
 
-    st.info("💡 **Tip**: When you export any resume using the **IIM Nagpur MBA Standard** template, education rows are automatically formatted into an official ATS-compliant table.")
+    st.info("💡 **Tip**: When you export or preview any resume using the **IIM Nagpur MBA Standard** template, education rows are automatically formatted into an official ATS-compliant table.")

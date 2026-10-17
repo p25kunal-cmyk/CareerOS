@@ -9,7 +9,7 @@ import streamlit as st
 
 from config.settings import settings
 from src.database.connection import DatabaseConnection
-from src.ui.components import section_header, metric_card
+from src.ui.components import section_header, metric_card, render_top_header
 from src.utils.logger import get_logger
 
 logger = get_logger("ui.settings")
@@ -17,6 +17,8 @@ logger = get_logger("ui.settings")
 
 def render(db: DatabaseConnection):
     """Render the Settings & AI Usage page."""
+    render_top_header("Settings", db)
+
     section_header("Settings & AI Usage", "Configure your CareerOS instance, AI keys, and matching algorithms.")
 
     tabs = st.tabs(["🤖 AI Provider", "🎯 Matching Weights", "💾 Data & Backup", "ℹ️ System Info"])

@@ -12,12 +12,15 @@ from src.database.connection import DatabaseConnection
 from src.jobs.engine import JobDiscoveryEngine
 from src.tracker.models import JobPosting, JobSearchProfile
 from src.tracker.repository import TrackerRepository
+from src.ui.components import render_top_header, navigate_to
 
 
 def render(db: DatabaseConnection):
     """Render Find Jobs, Discovery, and Job Profiles page."""
     tracker_repo = TrackerRepository(db)
     engine = JobDiscoveryEngine(db)
+
+    render_top_header("Find Jobs", db)
 
     st.markdown("## 🔍 Job Opportunities & Discovery")
     st.caption("Capture job opportunities, run automated multi-source discovery, and manage MBA search targets.")
@@ -67,15 +70,17 @@ def render(db: DatabaseConnection):
                         st.markdown(f"**First Discovered:** `{job.first_discovered}`")
                         st.markdown(f"**Last Seen:** `{job.last_seen}`")
 
-                        btn_col1, btn_col2 = st.columns(2)
+                        btn_col1, btn_col2, btn_col3 = st.columns(3)
                         with btn_col1:
-                            if st.button("📋 Track in Funnel", key=f"track_job_{job.id}", use_container_width=True):
+                            if st.button("📋 Track", key=f"track_job_{job.id}", type="primary", use_container_width=True):
                                 tracker_repo.create_application(job_id=job.id, status="saved")
-                                st.success("Added to Application Tracker!")
-                                st.session_state["nav_target"] = "Application Tracker"
-                                st.rerun()
+                                st.success("Added to Tracker!")
+                                navigate_to("Application Tracker")
                         with btn_col2:
-                            if st.button("🗑️ Delete", key=f"del_job_{job.id}", use_container_width=True):
+                            if st.button("🎯 Match", key=f"match_job_{job.id}", use_container_width=True):
+                                navigate_to("Job Matching")
+                        with btn_col3:
+                            if st.button("🗑️ Del", key=f"del_job_{job.id}", use_container_width=True):
                                 tracker_repo.delete_job(job.id)
                                 st.rerun()
 
